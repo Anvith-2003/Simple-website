@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mini Bike Catalog — Robust Image Loading</title>
+  <style>
+    :root{--bg:#f6f4ff;--card:#fff;--accent:#7b4cff;--muted:#6b6b7b}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial;color:#111;background:linear-gradient(#f6f4ff,#fff 60%)}
+    header{max-width:1100px;margin:22px auto;padding:0 18px;display:flex;gap:12px;align-items:center}
+    .logo{color:var(--accent);font-weight:700;display:flex;gap:10px;align-items:center}
+    .searchwrap{flex:1}
+    input[type=search]{width:100%;max-width:640px;padding:10px 14px;border-radius:999px;border:1px solid #e9e7ff}
+    .filters{display:flex;gap:8px}
+    .filters button{padding:8px 10px;border-radius:8px;border:1px solid #eee;background:#fff;cursor:pointer}
+    .filters button.active{background:linear-gradient(90deg,var(--accent),#a16bff);color:#fff;border:none}
+    main{max-width:1100px;margin:16px auto;padding:0 18px;display:grid;grid-template-columns:1fr 300px;gap:18px}
+    .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+    .card{background:#fff;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;box-shadow:0 8px 26px rgba(16,24,40,.06)}
+    .thumb{height:140px;border-radius:10px;overflow:hidden;background:#faf8ff;display:flex;align-items:center;justify-content:center}
+    .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+    h3{margin:0;font-size:16px}
+    .meta{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}
+    .price{font-weight:700}
+    .tag{padding:6px 8px;border-radius:999px;background:#f3f0ff;color:var(--accent);font-size:12px}
+    .actions{margin-top:auto;display:flex;gap:8px}
+    .btn{padding:8px 10px;border-radius:8px;border:none;cursor:pointer;font-weight:700}
+    .primary{background:linear-gradient(90deg,var(--accent),#a16bff);color:#fff}
+    aside .panel{background:#fff;padding:12px;border-radius:12px;box-shadow:0 8px 26px rgba(16,24,40,.06);margin-bottom:12px}
+    footer{max-width:1100px;margin:18px auto;padding:0 18px 40px;color:var(--muted)}
+    @media(max-width:900px){main{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">🏍️ BikeQuick</div>
+    <div class="searchwrap"><input id="search" type="search" placeholder="Search bike model"></div>
+    <div class="filters">
+      <button class="active" data-filter="all">All</button>
+      <button data-filter="trending">Trending</button>
+      <button data-filter="ev">EV</button>
+      <button data-filter="upcoming">Upcoming</button>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div><h2 style="margin:0">Featured Bikes</h2><div style="color:var(--muted);font-size:13px">Add photos to <code>assets/</code> or <code>images/</code></div></div>
+        <div style="color:var(--muted)"><span id="count">0</span></div>
+      </div>
+      <div class="cards" id="cards"></div>
+    </section>
+    <aside>
+      <div class="panel"><strong>Quick tips</strong><ul style="margin-top:8px;color:var(--muted)"><li>Put images in <code>assets/</code> or <code>images/</code> relative to this file</li><li>Try names like <code>royal-enfield-hunter-350.png</code></li><li>Check DevTools → Network for 404s</li></ul></div>
+      <div class="panel"><strong>Example filenames</strong><div style="color:var(--muted);margin-top:8px">assets/royal-enfield-hunter-350.png<br>assets/hero-xtreme-125r.jpg<br>images/ather-rizta.webp</div></div>
+    </aside>
+  </main>
+
+  <footer>Demo — automatic image detection & fallbacks. See console for debug logs.</footer>
+
+  <script>
+  // ---------------- Data ----------------
+  const bikes = [
+    { id:1, name:"Royal Enfield Hunter 350", price:"₹ 1,37,648", type:"Petrol", tags:["Trending"], release:"Launched", desc:"Classic single-cylinder thumper.", image: "assets/royal enfield hunter 350.png" },
+    { id:2, name:"Hero Xtreme 125R",      price:"₹ 90,677", type:"Petrol", tags:["Popular","Trending"], release:"Just Launched", desc:"Lightweight street bike.", image: "assets/Hero Xtreme 125R.png" },
+    { id:3, name:"Ather Rizta",           price:"₹ 1,11,631", type:"EV", tags:["EV"], release:"Available", desc:"Smart electric scooter.", image: "assets/Ather Rizta.png" },
+    { id:4, name:"Yamaha R15 V4",         price:"₹ 1,70,240", type:"Petrol", tags:[], release:"Available", desc:"Sporty 155cc class.", image: "assets/Yamaha R15 V4.png" },
+    { id:5, name:"OLA S1 Z (Demo)",       price:"₹ 59,999", type:"EV", tags:["EV","Trending"], release:"Available", desc:"Compact EV scooter.", image: "assets/OLA S1 Z.png" },
+    { id:6, name:"KTM RC 160 (Coming)",   price:"₹ 1.90 - 2.00 Lakh", type:"Petrol", tags:["Upcoming"], release:"Nov 2025 (Tentative)", desc:"Performance 160cc sportbike.", image: "assets/KTM RC 160.png" }
+  ];
+
+  // ---------------- Helpers ----------------
+  function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  // generate svg placeholder data URL
+  function svgPlaceholder(seed, w=900, h=500){
+    const label = (seed||'BIKE').replace(/-/g,' ').toUpperCase();
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' viewBox='0 0 ${w} ${h}'><rect width='100%' height='100%' fill='#f7f6ff'/><text x='32' y='120' font-family='sans-serif' font-size='48' fill='#3b2fa1'>🏍️ ${escapeHtml(label)}</text><text x='32' y='170' font-family='sans-serif' font-size='14' fill='#6b6b7b'>Placeholder — add a real photo named similar to this</text></svg>`;
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+  }
+
+  function picsum(seed,w=900,h=500){ return `https://picsum.photos/seed/${encodeURIComponent(seed)}/${w}/${h}`; }
+
+  // build candidates to try for an item `b`
+  function imageCandidates(b){
+    const candidates = [];
+    // 1) if user provided explicit b.image, try that first (raw)
+    if(b.image) candidates.push(b.image);
+
+    // 2) try encoded version of explicit image (handles spaces)
+    if(b.image) candidates.push(encodeURI(b.image));
+
+    // 3) try common folders + filename patterns derived from name or imageSeed
+    const seed = (b.imageSeed || b.name || '').trim();
+    const nameSlug = seed ? seed.toString().replace(/\s+/g,'-').toLowerCase() : b.name.replace(/\s+/g,'-').toLowerCase();
+
+    const folders = ['assets', 'images', '.']; // '.' means current folder
+    const exts = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+
+    folders.forEach(folder=>{
+      exts.forEach(ext=>{
+        candidates.push(`${folder}/${nameSlug}${ext}`);
+        // also try file with original title-casing and spaces but encoded
+        candidates.push(encodeURI(`${folder}/${nameSlug}${ext}`));
+      });
+    });
+
+    // 4) picsum last fallback (not pushed here; used separately)
+    // remove duplicates, preserve order
+    return Array.from(new Set(candidates));
+  }
+
+  // test a single URL by loading an Image object (returns Promise)
+  function testImageUrl(url, timeout = 6000){
+    return new Promise((resolve) => {
+      const img = new Image();
+      let done = false;
+      const timer = setTimeout(()=>{ if(!done){ done = true; resolve({url, ok:false, reason:'timeout'}); img.src=''; } }, timeout);
+      img.onload = () => { if(done) return; done = true; clearTimeout(timer); resolve({url, ok:true}); };
+      img.onerror = () => { if(done) return; done = true; clearTimeout(timer); resolve({url, ok:false, reason:'error'}); };
+      // set crossOrigin to anonymous to avoid tainting for some hosts (not necessary but harmless)
+      try{ img.crossOrigin = 'anonymous'; } catch(e){}
+      img.src = url;
+    });
+  }
+
+  // try candidates sequentially, return first that resolves ok
+  async function resolveImageForBike(b){
+    const cands = imageCandidates(b);
+    for(const url of cands){
+      try{
+        // quick heuristic: if url starts with http/https or begins with '/' or './' or has %20, just test
+        const res = await testImageUrl(url);
+        console.debug('image test:', url, '→', res.ok ? 'OK' : 'FAIL', res.reason || '');
+        if(res.ok) return url;
+      } catch(err){
+        console.debug('image test error for', url, err);
+      }
+    }
+    // none worked — return svg placeholder data URL (not tested because it's inline and always works)
+    return svgPlaceholder(b.imageSeed || b.name || b.id);
+  }
+
+  // ---------------- Render ----------------
+  const cardsRoot = document.getElementById('cards');
+  const countEl = document.getElementById('count');
+
+  async function render(list){
+    cardsRoot.innerHTML = '';
+    countEl.textContent = list.length;
+    // For each bike create card with placeholder then resolve image asynchronously
+    for(const b of list){
+      const art = document.createElement('article'); art.className = 'card';
+      art.dataset.type = (b.type||'').toLowerCase();
+
+      art.innerHTML = `
+        <div class="thumb"><img loading="lazy" src="${svgPlaceholder(b.imageSeed||b.name)}" alt="${escapeHtml(b.name)}"></div>
+        <h3>${escapeHtml(b.name)}</h3>
+        <div class="meta"><div class="price">${escapeHtml(b.price)}</div><div style="margin-left:auto">${(b.tags||[]).map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join('')}</div></div>
+        <div style="color:var(--muted);font-size:13px">${escapeHtml(b.desc||'')}</div>
+        <div class="actions"><button class="btn primary" onclick="checkPrice(${b.id})">Check price</button><button class="btn" onclick="showDetails(${b.id})">View</button></div>
+      `;
+      cardsRoot.appendChild(art);
+
+      // now resolve actual image and set src when ready
+      (async ()=>{
+        const imgEl = art.querySelector('img');
+        const chosen = await resolveImageForBike(b);
+        // if chosen looks like an external url or file path, encodeURI to be safe; but if it's an inline data: svg we keep it
+        const finalUrl = chosen.startsWith('data:') ? chosen : encodeURI(chosen);
+        // set the src
+        imgEl.src = finalUrl;
+        // if finalUrl is picsum seed (we didn't add it to candidates), it won't be chosen here; if no candidate matched,
+        // resolveImageForBike returns svgPlaceholder which is already a data URL and assigned above, so no extra fallback needed.
+      })();
+    }
+  }
+
+  // ---------------- Filters, search, interactions ----------------
+  document.getElementById('search').addEventListener('input', applyFilters);
+  document.querySelectorAll('.filters button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.filters button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      applyFilters();
+    });
+  });
+
+  function applyFilters(){
+    const q = document.getElementById('search').value.trim().toLowerCase();
+    const active = document.querySelector('.filters button.active')?.dataset.filter || 'all';
+    const filtered = bikes.filter(b=>{
+      if(active==='trending' && !(b.tags||[]).includes('Trending')) return false;
+      if(active==='ev' && (b.type||'').toLowerCase()!=='ev') return false;
+      if(active==='upcoming' && !(b.tags||[]).includes('Upcoming') && (b.release||'').toLowerCase().indexOf('tentative')===-1) return false;
+      if(!q) return true;
+      return (b.name+' '+(b.tags||[]).join(' ')+' '+(b.type||'')+' '+(b.price||'')).toLowerCase().includes(q);
+    });
+    render(filtered);
+  }
+
+  // interactions
+  function checkPrice(id){ const b = bikes.find(x=>x.id===id); if(!b) return alert('No data'); alert(`${b.name}\n${b.price}\n${b.type}\n${b.release}`); }
+  function showDetails(id){
+    const b = bikes.find(x=>x.id===id); if(!b) return;
+    const imgSrc = (async ()=>{
+      // try to find the image element in the card (it will have final src once resolved)
+      const card = Array.from(document.querySelectorAll('.card')).find(c=> c.querySelector('.btn.primary')?.getAttribute('onclick')?.includes(`checkPrice(${id})`));
+      const img = card?.querySelector('img');
+      return img?.src || svgPlaceholder(b.imageSeed||b.name);
+    })();
+
+    imgSrc.then(src=>{
+      const bg = document.createElement('div'); bg.style.position='fixed'; bg.style.inset='0'; bg.style.background='rgba(0,0,0,0.45)'; bg.style.display='flex'; bg.style.alignItems='center'; bg.style.justifyContent='center'; bg.style.zIndex=9999;
+      const box = document.createElement('div'); box.style.width='min(800px,94%)'; box.style.maxHeight='90vh'; box.style.overflow='auto'; box.style.background='#fff'; box.style.padding='16px'; box.style.borderRadius='12px';
+      box.innerHTML = `<div style="display:flex;gap:12px"><div style="flex:0 0 360px;border-radius:8px;overflow:hidden"><img src="${src}" style="width:100%;height:100%;object-fit:cover;display:block"></div><div style="flex:1"><h2 style="margin:0 0 8px 0">${escapeHtml(b.name)}</h2><div style="color:var(--muted);margin-bottom:8px">${escapeHtml(b.desc)}</div><div style="font-weight:700">${escapeHtml(b.price)}</div><div style="margin-top:12px"><button class="btn primary" onclick="alert('Request sent (demo)')">Request Quote</button><button class="btn" id="closeModal">Close</button></div></div></div>`;
+      bg.appendChild(box); document.body.appendChild(bg);
+      function close(){ bg.remove(); }
+      bg.addEventListener('click', e=> { if(e.target===bg) close(); });
+      box.querySelector('#closeModal').addEventListener('click', close);
+    });
+  }
+
+  // initial
+  applyFilters();
+
+  // Debug helper: show candidate list for first bike in console (optional)
+  console.info('Image loader ready — will try many candidate paths. If images still fail, open DevTools Network to see 404s.');
+  console.info('Example candidates for first bike:', imageCandidates(bikes[0]).slice(0,10));
+  </script>
+</body>
+</html>
